@@ -7,6 +7,7 @@ from database import get_db
 from reports.pdf_report import generate_pdf
 from app.utils.risk_engine import calculate_risk
 from app.utils.metadata_utils import find_leaked_metadata 
+from app.security_utils import encrypt_data
 from functools import wraps
 from flask import session, redirect, url_for, Blueprint
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -182,7 +183,7 @@ def settings():
             "MAIL_SERVER": request.form.get("mail_server"),
             "MAIL_PORT": request.form.get("mail_port"),
             "MAIL_USERNAME": request.form.get("mail_username"),
-            "MAIL_PASSWORD": request.form.get("mail_password")
+            "MAIL_PASSWORD": encrypt_data(request.form.get("mail_password"))
         }
         for key, value in settings_data.items():
             db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
