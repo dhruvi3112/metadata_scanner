@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}System Settings{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="width: 100%; max-width: 600px; margin: 0 auto;">
+    <div class="text-center mb-4">
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; border-radius: 50%; background: rgba(99, 102, 241, 0.1); margin-bottom: 15px;">
+            <i data-lucide="settings" style="color: var(--primary-color);"></i>
+        </div>
+        <h2 class="title-gradient">System Settings</h2>
+        <p>Configure SMTP and global application parameters</p>
+    </div>
+
+    {% if success %}
+    <div class="alert alert-success">
+        <i data-lucide="check-circle"></i> {{ success }}
+    </div>
+    {% endif %}
+
+    <form method="POST">
+        <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05); border-radius: 16px; padding: 24px; margin-bottom: 24px;">
+            <h3 style="font-size: 1.1rem; margin-bottom: 20px; color: var(--text-primary); display: flex; align-items: center; gap: 10px;">
+                <i data-lucide="mail" style="width: 18px; color: var(--primary-color);"></i> SMTP Configuration
+            </h3>
+            
+            <div class="form-group">
+                <label class="form-label">SMTP Server</label>
+                <input type="text" name="mail_server" class="form-control" value="{{ settings.get('MAIL_SERVER', 'smtp.gmail.com') }}" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">SMTP Port</label>
+                <input type="number" name="mail_port" class="form-control" value="{{ settings.get('MAIL_PORT', '587') }}" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Username (Email)</label>
+                <input type="email" name="mail_username" class="form-control" value="{{ settings.get('MAIL_USERNAME', '') }}" placeholder="your-email@gmail.com" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Password / App Token</label>
+                <div style="position: relative;">
+                    <input type="password" name="mail_password" id="mail_password" class="form-control" value="{{ settings.get('MAIL_PASSWORD', '') }}" placeholder="Enter SMTP password" required>
+                    <button type="button" onclick="togglePassword()" style="position: absolute; right: 12px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer;">
+                        <i data-lucide="eye" id="eye-icon" style="width: 18px;"></i>
+                    </button>
+                </div>
+                <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;">
+                    <i data-lucide="info" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle;"></i> Tip: Use an <a href="https://myaccount.google.com/apppasswords" target="_blank" style="color: var(--primary-color);">App Password</a> for Gmail.
+                </p>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-w-100">
+            <i data-lucide="save"></i> Save System Settings
+        </button>
+    </form>
+</div>
+
+<script>
+function togglePassword() {
+    const pwd = document.getElementById('mail_password');
+    const icon = document.getElementById('eye-icon');
+    if (pwd.type === 'password') {
+        pwd.type = 'text';
+        icon.setAttribute('data-lucide', 'eye-off');
+    } else {
+        pwd.type = 'password';
+        icon.setAttribute('data-lucide', 'eye');
+    }
+    lucide.createIcons(); // Refresh icons
+}
+</script>
+{% endblock %}

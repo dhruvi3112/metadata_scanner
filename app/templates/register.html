@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}Register{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="width: 100%; max-width: 450px;">
+    <div class="text-center mb-4">
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 60px; height: 60px; border-radius: 50%; background: rgba(16, 185, 129, 0.1); margin-bottom: 15px;">
+            <i data-lucide="user-plus" style="color: var(--success-color);"></i>
+        </div>
+        <h2 class="title-gradient">Create Account</h2>
+        <p>Join to start scanning metadata securely</p>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">
+        <i data-lucide="alert-circle"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    <form method="POST">
+        <div class="form-group">
+            <label class="form-label">Username</label>
+            <div style="position: relative;">
+                <i data-lucide="user" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 20px;"></i>
+                <input type="text" name="username" class="form-control" style="padding-left: 48px;" placeholder="Choose a username" required>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Email</label>
+            <div style="position: relative;">
+                <i data-lucide="mail" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 20px;"></i>
+                <input type="email" name="email" class="form-control" style="padding-left: 48px;" placeholder="Enter your email address" required>
+            </div>
+        </div>
+
+        <div class="form-group mb-4">
+            <label class="form-label">Password</label>
+            <div style="position: relative;">
+                <i data-lucide="key" style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 20px;"></i>
+                <input type="password" name="password" class="form-control" style="padding-left: 48px;" placeholder="Create a strong password" required>
+            </div>
+            <p style="font-size: 0.85rem; margin-top: 8px; margin-bottom: 0;">
+                <i data-lucide="info" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i> Must contain uppercase, lowercase, number & symbol
+            </p>
+        </div>
+
+        <button class="btn btn-success btn-w-100 mb-3">
+            <i data-lucide="shield-check"></i> Create Secure Account
+        </button>
+    </form>
+
+    <p class="text-center mt-4">
+        Already have an account?
+        <a href="{{ url_for('auth.login') }}" class="auth-link">Login here</a>
+    </p>
+</div>
+{% endblock %}

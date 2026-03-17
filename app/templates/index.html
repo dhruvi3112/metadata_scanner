@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="glass-card" style="width: 100%; max-width: 600px; padding: 40px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid var(--glass-border); padding-bottom: 20px;">
+        <div>
+            <h2 class="title-gradient" style="margin-bottom: 5px;">Dashboard</h2>
+            <p style="margin-bottom: 0;">Detect sensitive metadata in files</p>
+        </div>
+    </div>
+
+    {% if error %}
+    <div class="alert alert-error">
+        <i data-lucide="alert-circle"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 16px; padding: 30px;">
+        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 25px;">
+            <div style="background: rgba(99, 102, 241, 0.1); padding: 12px; border-radius: 12px;">
+                <i data-lucide="file-check-2" style="color: var(--primary-color); width: 28px; height: 28px;"></i>
+            </div>
+            <div>
+                <h3 style="margin: 0; font-size: 1.3rem;">File Metadata Scan</h3>
+                <p style="margin: 0; font-size: 0.9rem;">Upload a PDF or DOCX file to analyze</p>
+            </div>
+        </div>
+        
+        <form method="POST" action="/scan" enctype="multipart/form-data">
+            <div class="form-group mb-4">
+                <div id="drop-zone" style="position: relative; border: 2px dashed rgba(255, 255, 255, 0.2); border-radius: 16px; padding: 40px 20px; text-align: center; background: rgba(0, 0, 0, 0.2); transition: all 0.3s ease; cursor: pointer; overflow: hidden;"
+                     onmouseover="this.style.borderColor='var(--primary-color)'; this.style.background='rgba(99, 102, 241, 0.05)';"
+                     onmouseout="this.style.borderColor='rgba(255, 255, 255, 0.2)'; this.style.background='rgba(0, 0, 0, 0.2)';">
+                    
+                    <input type="file" name="file" id="file-input" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; z-index: 10;" required>
+                    
+                    <div id="upload-content">
+                        <div style="display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: rgba(255, 255, 255, 0.05); margin-bottom: 15px; transition: transform 0.3s ease;" class="upload-icon-container">
+                            <i data-lucide="upload-cloud" style="width: 32px; height: 32px; color: var(--primary-color);"></i>
+                        </div>
+                        <h4 style="margin-bottom: 8px; color: var(--text-main); font-size: 1.1rem;">Click to upload or drag and drop</h4>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0;">PDF and DOCX formats supported</p>
+                    </div>
+
+                    <div id="file-selected-content" style="display: none; align-items: center; justify-content: center; flex-direction: column; gap: 10px;">
+                        <i data-lucide="file-check" style="width: 48px; height: 48px; color: var(--success-color);"></i>
+                        <h4 id="file-name-display" style="margin-bottom: 0; color: var(--text-main); font-size: 1.1rem; word-break: break-all;"></h4>
+                        <p style="font-size: 0.85rem; color: var(--success-color); margin-bottom: 0;">File selected and ready to scan</p>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-w-100" style="padding: 16px; font-size: 1.1rem;">
+                <i data-lucide="shield-check"></i> Run Security Scan
+            </button>
+        </form>
+
+        <script>
+            const fileInput = document.getElementById('file-input');
+            const dropZone = document.getElementById('drop-zone');
+            const uploadContent = document.getElementById('upload-content');
+            const fileSelectedContent = document.getElementById('file-selected-content');
+            const fileNameDisplay = document.getElementById('file-name-display');
+
+            fileInput.addEventListener('change', function(e) {
+                if(this.files && this.files.length > 0) {
+                    uploadContent.style.display = 'none';
+                    fileSelectedContent.style.display = 'flex';
+                    fileNameDisplay.textContent = this.files[0].name;
+                    // Keep hover styles applied when file is selected
+                    dropZone.onmouseover = null;
+                    dropZone.onmouseout = null;
+                    dropZone.style.borderColor = 'var(--success-color)';
+                    dropZone.style.background = 'rgba(16, 185, 129, 0.05)';
+                } else {
+                    uploadContent.style.display = 'block';
+                    fileSelectedContent.style.display = 'none';
+                    
+                    // Restore hover styles
+                    dropZone.onmouseover = function() {
+                        this.style.borderColor='var(--primary-color)'; 
+                        this.style.background='rgba(99, 102, 241, 0.05)';
+                    };
+                    dropZone.onmouseout = function() {
+                        this.style.borderColor='rgba(255, 255, 255, 0.2)'; 
+                        this.style.background='rgba(0, 0, 0, 0.2)';
+                    };
+                    dropZone.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                    dropZone.style.background = 'rgba(0, 0, 0, 0.2)';
+                }
+            });
+
+            // Add drag and drop visual cues
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                if(fileInput.files.length === 0) {
+                    dropZone.style.borderColor = 'var(--primary-color)';
+                    dropZone.style.background = 'rgba(99, 102, 241, 0.1)';
+                    document.querySelector('.upload-icon-container').style.transform = 'scale(1.1)';
+                }
+            });
+
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                if(fileInput.files.length === 0) {
+                    dropZone.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                    dropZone.style.background = 'rgba(0, 0, 0, 0.2)';
+                    document.querySelector('.upload-icon-container').style.transform = 'scale(1)';
+                }
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                if(fileInput.files.length === 0) {
+                    document.querySelector('.upload-icon-container').style.transform = 'scale(1)';
+                }
+            });
+        </script>
+</div>
+{% endblock %}

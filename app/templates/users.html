@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}User Management{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="width: 100%; max-width: 900px; margin: 0 auto; padding: 40px; border-radius: 20px;">
+    <div class="text-center mb-4">
+        <h2 class="title-gradient" style="margin-bottom: 8px;">User Management</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">Manage roles for registered users.</p>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}" 
+                     style="margin-bottom: 24px; padding: 12px 16px; border-radius: 12px; display: flex; align-items: center; gap: 10px;
+                            {% if category == 'success' %}background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); color: #10b981;
+                            {% else %}background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); color: #ef4444;{% endif %}">
+                    <i data-lucide="{{ 'check-circle' if category == 'success' else 'alert-circle' }}" style="width: 18px; height: 18px;"></i>
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <div style="background: rgba(15, 23, 42, 0.4); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 16px; overflow: hidden;">
+        <table class="table" style="margin: 0; width: 100%;">
+            <thead>
+                <tr>
+                    <th style="padding: 16px; text-align: left; color: var(--text-muted); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">ID</th>
+                    <th style="padding: 16px; text-align: left; color: var(--text-muted); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">User</th>
+                    <th style="padding: 16px; text-align: left; color: var(--text-muted); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">Role</th>
+                    <th style="padding: 16px; text-align: right; color: var(--text-muted); font-weight: 500; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.02); transition: background 0.2s;">
+                    <td style="padding: 16px; color: var(--text-muted); font-size: 0.9rem;">
+                        #{{ user.id }}
+                    </td>
+                    <td style="padding: 16px;">
+                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 2px;">{{ user.username }}</div>
+                        <div style="color: var(--text-muted); font-size: 0.85rem;">{{ user.email }}</div>
+                    </td>
+                    <td style="padding: 16px;">
+                        <span class="badge badge-{{ 'primary' if user.role == 'admin' else 'default' }}" 
+                              style="font-size: 0.75rem; padding: 4px 10px; border-radius: 20px;
+                                     {% if user.role == 'admin' %}background: rgba(99, 102, 241, 0.15); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.3);
+                                     {% else %}background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2);{% endif %}">
+                            {{ user.role.upper() }}
+                        </span>
+                    </td>
+                    <td style="padding: 16px; text-align: right;">
+                        {% if user.id != session.get('user_id') %}
+                        <form method="POST" action="{{ url_for('routes.manage_users') }}" style="display: inline-flex; align-items: center; gap: 8px;">
+                            <input type="hidden" name="user_id" value="{{ user.id }}">
+                            <select name="role" class="form-control" style="width: auto; padding: 6px 30px 6px 12px; font-size: 0.85rem; height: auto; min-height: 32px; background-color: rgba(15, 23, 42, 0.6);">
+                                <option value="user" {% if user.role == 'user' %}selected{% endif %}>User</option>
+                                <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Admin</option>
+                            </select>
+                            <button type="submit" class="btn btn-primary" style="padding: 6px 12px; font-size: 0.85rem; height: auto; min-height: 32px;">
+                                Update
+                            </button>
+                        </form>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">(You)</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not users %}
+                <tr>
+                    <td colspan="4" style="padding: 30px; text-align: center; color: var(--text-muted);">
+                        No users found.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<style>
+    tbody tr:hover { background: rgba(255, 255, 255, 0.02); }
+</style>
+{% endblock %}

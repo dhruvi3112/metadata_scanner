@@ -1,0 +1,36 @@
+# ── Secrets ──
+.env
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.pyo
+venv/
+.venv/
+
+# ── App Data ──
+database.db
+uploads/
+generated_reports/
+*.pdf
+
+# ── Nested project copy (leftover) ──
+app/templates/metadata_scanner_web/
+
+# ── IDE ──
+.vscode/
+.idea/
+
+# ── Old DBs ──
+scans.db
+
+# ── Temp/Migration/Test Scripts ──
+/tmp/
+db_migrate_*.py
+db_reset_*.py
+test_smtp*.py
+test_email.py
+check_db*.py
+make_admin.py
+add_role.py
+db_migrate.py

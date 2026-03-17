@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Metadata Scanner{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+
+    <!-- Unified Navbar for logged in or out -->
+    <nav class="navbar">
+        <a href="/" class="nav-brand">
+            <i data-lucide="shield"></i> Scanner
+        </a>
+        <div class="nav-links">
+            {% if session.get('user_id') %}
+                <a href="/"><i data-lucide="home"></i> Home</a>
+                <a href="/history"><i data-lucide="history"></i> History</a>
+                {% if session.get('role') == 'admin' %}
+                    <a href="/admin/users"><i data-lucide="users"></i> Users</a>
+                    <a href="/settings"><i data-lucide="settings"></i> Settings</a>
+                {% endif %}
+                <a href="/logout" class="btn btn-danger" style="padding: 8px 16px;"><i data-lucide="log-out"></i> Logout</a>
+            {% else %}
+                <a href="{{ url_for('auth.login') }}">Login</a>
+                <a href="{{ url_for('auth.register') }}" class="btn btn-primary" style="padding: 8px 16px;">Register</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    <div class="container fade-in {% block container_class %}center-content{% endblock %}">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Initialize Lucide Icons -->
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

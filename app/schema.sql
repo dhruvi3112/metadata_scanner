@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT UNIQUE NOT NULL,
+    email TEXT NOT NULL,
+    password TEXT NOT NULL,
+    role TEXT DEFAULT 'user',
+    email_verified INTEGER DEFAULT 0,
+    phone_number TEXT,
+    two_fa_enabled INTEGER DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS otp_codes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    code TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP NOT NULL,
+    used INTEGER DEFAULT 0,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+);

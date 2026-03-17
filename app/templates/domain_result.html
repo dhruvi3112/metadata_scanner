@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2>Domain Scan Result</h2>
+
+<p><strong>Domain:</strong> {{ domain }}</p>
+
+<table>
+    <tr>
+        <th>Check</th>
+        <th>Status</th>
+    </tr>
+    {% for key, value in results.items() %}
+    <tr>
+        <td>{{ key }}</td>
+        <td>{{ value }}</td>
+    </tr>
+    {% endfor %}
+</table>
+
+<br>
+<a href="/">⬅ Back to Home</a>
+{% endblock %}

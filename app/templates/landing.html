@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block title %}Metadata Security Scanner{% endblock %}
+
+{% block content %}
+<div class="glass-card text-center" style="max-width: 700px; padding: 60px 40px;">
+    
+    <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+        <i data-lucide="shield-check" style="width: 64px; height: 64px; color: var(--primary-color);"></i>
+    </div>
+    
+    <h1 class="title-gradient mb-3" style="font-size: 2.5rem;">Metadata Security Scanner</h1>
+
+    <p style="font-size: 1.1rem; color: var(--text-main);">
+        A cybersecurity tool to detect <b style="color: white;">metadata leakage</b> in documents
+        and assess potential <b style="color: white;">privacy & security risks</b>.
+    </p>
+
+    <div class="text-center mt-4 mb-4" style="display: inline-block; text-align: left !important; background: rgba(0,0,0,0.2); padding: 25px 40px; border-radius: 16px; border: 1px solid var(--glass-border);">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <i data-lucide="file-text" style="color: var(--secondary-color);"></i>
+            <span>Scan PDF & DOCX files</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <i data-lucide="alert-triangle" style="color: var(--warning-color);"></i>
+            <span>Risk score & exposure analysis</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+            <i data-lucide="activity" style="color: var(--success-color);"></i>
+            <span>Scan history & reports</span>
+        </div>
+    </div>
+
+    <div class="mt-2">
+        <a href="{{ url_for('auth.login') }}" class="btn btn-primary btn-w-100" style="font-size: 1.1rem; padding: 16px;">
+            <i data-lucide="rocket"></i> Get Started Securely
+        </a>
+    </div>
+
+</div>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="glass-card" style="width: 100%; max-width: 900px; padding: 40px;">
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid var(--glass-border); padding-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div style="background: rgba(99, 102, 241, 0.1); padding: 12px; border-radius: 12px;">
+                <i data-lucide="history" style="color: var(--primary-color); width: 28px; height: 28px;"></i>
+            </div>
+            <div>
+                <h2 class="title-gradient" style="margin-bottom: 5px;">Scan History</h2>
+                <p style="margin-bottom: 0;">Review your past metadata analysis reports</p>
+            </div>
+        </div>
+        <a href="/" class="btn btn-primary" style="padding: 8px 16px;">
+            <i data-lucide="plus"></i> New Scan
+        </a>
+    </div>
+
+    {% if scans %}
+    <div class="table-container">
+        <table class="table">
+            <thead>
+                <tr>
+                    {% if session.role == "admin" %}
+                    <th>User</th>
+                    {% endif %}
+                    <th>File Analyzed</th>
+                    <th>Risk</th>
+                    <th>Date</th>
+                    <th>Report</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for scan in scans %}
+                <tr>
+                    {% if session.role == "admin" %}
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 24px; height: 24px; border-radius: 50%; background: var(--glass-border); display: flex; align-items: center; justify-content: center;">
+                                <i data-lucide="user" style="width: 12px; height: 12px; color: var(--text-muted);"></i>
+                            </div>
+                            {{ scan.username }}
+                        </div>
+                    </td>
+                    {% endif %}
+
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <i data-lucide="file-text" style="color: var(--text-muted); width: 16px;"></i>
+                            {{ scan.filename }}
+                        </div>
+                    </td>
+                    
+                    <td>
+                        {% if scan.risk_score >= 75 %}
+                            <span class="badge badge-high">{{ scan.risk_score }}% High</span>
+                        {% elif scan.risk_score >= 40 %}
+                            <span class="badge badge-medium">{{ scan.risk_score }}% Medium</span>
+                        {% else %}
+                            <span class="badge badge-low">{{ scan.risk_score }}% Low</span>
+                        {% endif %}
+                    </td>
+                    
+                    <td style="color: var(--text-muted); font-size: 0.9rem;">
+                        {{ scan.created_at }}
+                    </td>
+
+                    <td>
+                        {% if scan.report_file %}
+                        <a href="{{ url_for('routes.download_report', scan_id=scan.id) }}" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.85rem;">
+                            <i data-lucide="download" style="width: 14px; height: 14px;"></i> Download
+                        </a>
+                        {% else %}
+                        <span style="color: var(--text-muted); font-size: 0.9rem; font-style: italic;">N/A</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div style="text-align: center; padding: 60px 20px; border: 1px dashed var(--glass-border); border-radius: 16px; background: rgba(0,0,0,0.1);">
+        <i data-lucide="inbox" style="width: 64px; height: 64px; color: var(--glass-border); margin-bottom: 20px;"></i>
+        <h3 style="color: var(--text-muted); margin-bottom: 10px;">No scan history yet</h3>
+        <p>You haven't performed any document analysis yet.</p>
+        <a href="/" class="btn btn-primary mt-3">
+            Start Your First Scan
+        </a>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

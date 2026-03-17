@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Two-Factor Authentication{% endblock %}
+
+{% block content %}
+<div class="glass-card" style="width: 100%; max-width: 480px;">
+    <div class="text-center mb-4">
+        <div style="display: inline-flex; align-items: center; justify-content: center; width: 70px; height: 70px; border-radius: 50%; background: rgba(99, 102, 241, 0.1); margin-bottom: 15px;">
+            <i data-lucide="lock-keyhole" style="color: var(--primary-color); width: 32px; height: 32px;"></i>
+        </div>
+        <h2 class="title-gradient">Two-Factor Authentication</h2>
+        <p style="color: var(--text-muted); font-size: 0.95rem;">
+            Enter the code sent to<br>
+            <strong style="color: var(--text-primary);">{{ masked_email }}</strong>
+        </p>
+    </div>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ 'success' if category == 'success' else ('warning' if category == 'warning' else 'error') }}" 
+                     style="border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+                            {% if category == 'success' %}background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.1); color: #10b981;
+                            {% elif category == 'warning' %}background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #f59e0b;
+                            {% endif %}">
+                    <i data-lucide="{{ 'check-circle' if category == 'success' else ('alert-triangle' if category == 'warning' else 'alert-circle') }}"></i> {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    {% if error %}
+    <div class="alert alert-error">
+        <i data-lucide="alert-circle"></i> {{ error }}
+    </div>
+    {% endif %}
+
+    {% if session.get('resend_success') %}
+    <div class="alert alert-success" style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: #10b981; border-radius: 12px; padding: 12px 16px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+        <i data-lucide="check-circle"></i> {{ session.pop('resend_success') }}
+    </div>
+    {% endif %}
+
+    <!-- Security indicator -->
+    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 16px; background: rgba(99, 102, 241, 0.08); border-radius: 10px; margin-bottom: 20px;">
+        <i data-lucide="shield-check" style="width: 16px; height: 16px; color: var(--primary-color);"></i>
+        <span style="font-size: 0.85rem; color: var(--text-muted);">Secure two-factor verification</span>
+    </div>
+
+    <form method="POST" id="otp-form-2fa">
+        <div class="form-group">
+            <label class="form-label" style="text-align: center; display: block;">Enter Authentication Code</label>
+            <div class="otp-input-group" style="display: flex; justify-content: center; gap: 10px; margin: 16px 0 8px;">
+                {% for i in range(6) %}
+                <input type="text" maxlength="1" class="otp-digit-2fa"
+                    style="width: 50px; height: 58px; text-align: center; font-size: 1.5rem; font-weight: 700;
+                           background: rgba(255,255,255,0.04); border: 2px solid rgba(99, 102, 241, 0.3);
+                           border-radius: 12px; color: var(--text-primary); outline: none;
+                           transition: border-color 0.2s, box-shadow 0.2s;"
+                    data-index="{{ i }}"
+                    inputmode="numeric" pattern="[0-9]" autocomplete="off">
+                {% endfor %}
+            </div>
+            <input type="hidden" name="otp" id="otp-hidden-2fa">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-w-100 mb-3" id="verify-btn-2fa" style="margin-top: 16px;">
+            <i data-lucide="log-in"></i> Verify & Login
+        </button>
+    </form>
+
+    <div style="text-align: center; margin-top: 16px;">
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px;">
+            <i data-lucide="clock" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
+            Code expires in 10 minutes
+        </p>
+        <form method="POST" action="{{ url_for('auth.resend_otp') }}" style="display: inline;">
+            <input type="hidden" name="purpose" value="login_2fa">
+            <button type="submit" class="auth-link" style="background: none; border: none; cursor: pointer; font-size: 0.9rem; color: var(--primary-color);">
+                <i data-lucide="refresh-cw" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
+                Didn't receive it? Resend Code
+            </button>
+        </form>
+    </div>
+
+    <div style="text-align: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(148, 163, 184, 0.1);">
+        <a href="{{ url_for('auth.login') }}" style="color: var(--text-muted); font-size: 0.85rem; text-decoration: none;">
+            <i data-lucide="arrow-left" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
+            Back to Login
+        </a>
+    </div>
+</div>
+
+<style>
+    .otp-digit-2fa:focus {
+        border-color: var(--primary-color) !important;
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+    }
+    .otp-digit-2fa.filled {
+        border-color: var(--primary-color);
+        background: rgba(99, 102, 241, 0.05);
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const digits = document.querySelectorAll('.otp-digit-2fa');
+    const hiddenInput = document.getElementById('otp-hidden-2fa');
+    const form = document.getElementById('otp-form-2fa');
+
+    // Focus first input
+    digits[0].focus();
+
+    digits.forEach((input, index) => {
+        input.addEventListener('input', function(e) {
+            const value = this.value.replace(/[^0-9]/g, '');
+            this.value = value;
+
+            if (value && index < digits.length - 1) {
+                digits[index + 1].focus();
+            }
+
+            if (value) this.classList.add('filled');
+            else this.classList.remove('filled');
+
+            updateHidden();
+        });
+
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Backspace' && !this.value && index > 0) {
+                digits[index - 1].focus();
+                digits[index - 1].value = '';
+                digits[index - 1].classList.remove('filled');
+                updateHidden();
+            }
+        });
+
+        input.addEventListener('paste', function(e) {
+            e.preventDefault();
+            const paste = (e.clipboardData || window.clipboardData).getData('text').replace(/[^0-9]/g, '');
+            for (let i = 0; i < Math.min(paste.length, 6); i++) {
+                digits[i].value = paste[i];
+                digits[i].classList.add('filled');
+            }
+            if (paste.length >= 6) digits[5].focus();
+            else if (paste.length > 0) digits[paste.length].focus();
+            updateHidden();
+        });
+    });
+
+    function updateHidden() {
+        hiddenInput.value = Array.from(digits).map(d => d.value).join('');
+    }
+
+    form.addEventListener('submit', function(e) {
+        updateHidden();
+        if (hiddenInput.value.length !== 6) {
+            e.preventDefault();
+            alert('Please enter all 6 digits');
+        }
+    });
+});
+</script>
+{% endblock %}

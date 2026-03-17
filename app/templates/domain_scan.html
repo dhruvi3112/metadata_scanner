@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="glass-card" style="width: 100%; max-width: 800px; padding: 40px;">
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 1px solid var(--glass-border); padding-bottom: 20px;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <div style="background: rgba(168, 85, 247, 0.1); padding: 12px; border-radius: 12px;">
+                <i data-lucide="globe" style="color: var(--secondary-color); width: 28px; height: 28px;"></i>
+            </div>
+            <div>
+                <h2 class="title-gradient" style="margin-bottom: 5px;">Domain Scanner</h2>
+                <p style="margin-bottom: 0;">Analyze public domains for exposed metadata</p>
+            </div>
+        </div>
+        <a href="/" class="btn btn-secondary" style="padding: 8px 16px;">
+            <i data-lucide="arrow-left"></i> Back
+        </a>
+    </div>
+
+    <form method="POST" class="mb-4">
+        <label class="form-label" style="font-size: 1.1rem; color: var(--text-main);">Target Domain</label>
+        <div style="display: flex; gap: 15px;">
+            <div style="position: relative; flex: 1;">
+                <i data-lucide="search" style="position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: var(--text-muted); width: 20px;"></i>
+                <input type="text" name="domain" class="form-control" style="padding-left: 50px; font-size: 1.1rem; height: 50px;" placeholder="e.g. example.com" required>
+            </div>
+            <button class="btn btn-primary" style="height: 50px; padding: 0 30px; background: linear-gradient(135deg, var(--secondary-color), var(--primary-color)); box-shadow: 0 4px 15px rgba(168, 85, 247, 0.3);">
+                <i data-lucide="zap"></i> Analyze
+            </button>
+        </div>
+    </form>
+
+    {% if results %}
+    <div style="margin-top: 40px; border-top: 1px solid var(--glass-border); padding-top: 30px;">
+        <h3 style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+            <i data-lucide="bar-chart-2" style="color: var(--primary-color);"></i>
+            Scan Results
+        </h3>
+        
+        <div class="table-container">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Discovered File</th>
+                        <th>Risk Level</th>
+                        <th>Risk Score</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in results %}
+                    <tr>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <i data-lucide="file" style="color: var(--text-muted); width: 16px;"></i>
+                                {{ r.file }}
+                            </div>
+                        </td>
+                        <td>
+                            {% if r.risk == 'High' %}
+                                <span class="badge badge-high">High Risk</span>
+                            {% elif r.risk == 'Medium' %}
+                                <span class="badge badge-medium">Medium Risk</span>
+                            {% else %}
+                                <span class="badge badge-low">Low Risk</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <div class="progress-wrapper" style="width: 100px; margin: 0;">
+                                    <div class="progress-bar {% if r.risk == 'High' %}bg-danger{% elif r.risk == 'Medium' %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ r.score }}%;"></div>
+                                </div>
+                                <span>{{ r.score }}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}
