@@ -1,4 +1,4 @@
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 def extract_metadata(file_path):
     reader = PdfReader(file_path)
