@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, send_from_directory, abort
+from flask import Blueprint, render_template, request, send_from_directory, abort, flash
 import os
 from scanner.extractor import extract_metadata
 from scanner.analyzer import analyze_metadata
@@ -9,6 +9,7 @@ from app.utils.risk_engine import calculate_risk
 from app.utils.metadata_utils import find_leaked_metadata 
 from functools import wraps
 from flask import session, redirect, url_for, Blueprint
+from werkzeug.security import generate_password_hash, check_password_hash
 
 routes = Blueprint("routes", __name__)
 
@@ -171,7 +172,7 @@ def manage_users():
     return render_template("users.html", users=users)
 
 # ================= SETTINGS =================
-@routes.route("/settings", methods=["GET", "POST"])
+@routes.route("/admin/settings", methods=["GET", "POST"])
 @login_required
 @admin_required
 def settings():
@@ -186,11 +187,39 @@ def settings():
         for key, value in settings_data.items():
             db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
         db.commit()
-        return render_template("settings.html", success="Settings updated successfully!", settings=settings_data)
+        return render_template("settings.html", success="System settings updated successfully!", settings=settings_data)
 
     db_settings = db.execute("SELECT key, value FROM settings").fetchall()
     settings_dict = {row["key"]: row["value"] for row in db_settings}
     return render_template("settings.html", settings=settings_dict)
+
+@routes.route("/settings/password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    if request.method == "POST":
+        current_password = request.form.get("current_password")
+        new_password = request.form.get("new_password")
+        confirm_password = request.form.get("confirm_password")
+        
+        db = get_db()
+        user = db.execute("SELECT password FROM users WHERE id = ?", (session["user_id"],)).fetchone()
+        
+        if not check_password_hash(user["password"], current_password):
+            return render_template("change_password.html", error="Incorrect current password")
+            
+        if new_password != confirm_password:
+            return render_template("change_password.html", error="New passwords do not match")
+            
+        if len(new_password) < 8:
+            return render_template("change_password.html", error="Password must be at least 8 characters long")
+            
+        hashed_password = generate_password_hash(new_password)
+        db.execute("UPDATE users SET password = ? WHERE id = ?", (hashed_password, session["user_id"]))
+        db.commit()
+        
+        return render_template("change_password.html", success="Password updated successfully!")
+        
+    return render_template("change_password.html")
 
 # ================= HISTORY =================
 @routes.route("/history")
