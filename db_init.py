@@ -53,6 +53,14 @@ CREATE TABLE IF NOT EXISTS settings (
 )
 """)
 
+# INSERT DEFAULT ADMIN (Password@123)
+from werkzeug.security import generate_password_hash
+hashed = generate_password_hash("Password@123")
+cursor.execute("""
+INSERT OR IGNORE INTO users (username, email, password, role, email_verified)
+VALUES (?, ?, ?, ?, 1)
+""", ("Dhruvi", "dhruvipanchal847@gmail.com", hashed, "admin"))
+
 conn.commit()
 conn.close()
 
