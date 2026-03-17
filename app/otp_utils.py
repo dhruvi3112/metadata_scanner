@@ -6,6 +6,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from database import get_db
+from app.security_utils import decrypt_data
 
 
 def generate_otp(length=6):
@@ -82,7 +83,8 @@ def send_otp_email(to_email, code, purpose):
     settings_dict = {row["key"]: row["value"] for row in db_settings}
 
     mail_username = (settings_dict.get("MAIL_USERNAME") or os.environ.get("MAIL_USERNAME", "")).strip()
-    mail_password = (settings_dict.get("MAIL_PASSWORD") or os.environ.get("MAIL_PASSWORD", "")).strip().replace(" ", "")
+    encrypted_password = (settings_dict.get("MAIL_PASSWORD") or os.environ.get("MAIL_PASSWORD", "")).strip().replace(" ", "")
+    mail_password = decrypt_data(encrypted_password)
     mail_server = (settings_dict.get("MAIL_SERVER") or os.environ.get("MAIL_SERVER", "smtp.gmail.com")).strip()
     mail_port_str = (settings_dict.get("MAIL_PORT") or os.environ.get("MAIL_PORT", "587")).strip()
     try:

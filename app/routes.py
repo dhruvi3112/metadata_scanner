@@ -7,6 +7,7 @@ from database import get_db
 from reports.pdf_report import generate_pdf
 from app.utils.risk_engine import calculate_risk
 from app.utils.metadata_utils import find_leaked_metadata 
+from app.security_utils import encrypt_data, decrypt_data
 from functools import wraps
 from flask import session, redirect, url_for, Blueprint
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -95,6 +96,10 @@ def scan_file():
 
     db = get_db()
     
+    # ENCRYPT filenames before saving to DB
+    encrypted_filename = encrypt_data(file.filename)
+    encrypted_report_filename = encrypt_data(report_filename)
+    
     from database import IS_POSTGRES
     if IS_POSTGRES:
         cursor = db.execute(
@@ -103,7 +108,7 @@ def scan_file():
             VALUES (?, ?, ?, ?)
             RETURNING id
             """,
-            (session["user_id"], file.filename, report_filename, risk_score)
+            (session["user_id"], encrypted_filename, encrypted_report_filename, risk_score)
         )
         scan_id = cursor.fetchone()["id"]
         db.commit()
@@ -113,7 +118,7 @@ def scan_file():
             INSERT INTO scan_history (user_id, filename, report_file, risk_score)
             VALUES (?, ?, ?, ?)
             """,
-            (session["user_id"], file.filename, report_filename, risk_score)
+            (session["user_id"], encrypted_filename, encrypted_report_filename, risk_score)
         )
         db.commit()
         scan_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -183,7 +188,7 @@ def settings():
             "MAIL_SERVER": request.form.get("mail_server"),
             "MAIL_PORT": request.form.get("mail_port"),
             "MAIL_USERNAME": request.form.get("mail_username"),
-            "MAIL_PASSWORD": request.form.get("mail_password")
+            "MAIL_PASSWORD": encrypt_data(request.form.get("mail_password"))
         }
         for key, value in settings_data.items():
             db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
@@ -231,8 +236,7 @@ def history():
 
     db = get_db()
 
-    if session.get("role") == "admin":
-        scans = db.execute(
+        scans_raw = db.execute(
             """
             SELECT scan_history.*, users.username
             FROM scan_history
@@ -241,7 +245,7 @@ def history():
             """
         ).fetchall()
     else:
-        scans = db.execute(
+        scans_raw = db.execute(
             """
             SELECT *
             FROM scan_history
@@ -250,6 +254,13 @@ def history():
             """,
             (session["user_id"],)
         ).fetchall()
+
+    # DECRYPT filenames for display
+    scans = []
+    for row in scans_raw:
+        row_dict = dict(row)
+        row_dict["filename"] = decrypt_data(row_dict.get("filename", ""))
+        scans.append(row_dict)
 
     return render_template("history.html", scans=scans)
 
