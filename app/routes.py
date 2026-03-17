@@ -236,6 +236,7 @@ def history():
 
     db = get_db()
 
+    if session.get("role") == "admin":
         scans_raw = db.execute(
             """
             SELECT scan_history.*, users.username
@@ -288,8 +289,11 @@ def download_report(scan_id):
     if not scan or not scan["report_file"]:
         abort(404)
 
+    # DECRYPT the report file name to find it on disk
+    real_report_filename = decrypt_data(scan["report_file"])
+
     return send_from_directory(
         os.path.abspath("generated_reports"),
-        scan["report_file"],
+        real_report_filename,
         as_attachment=True
     )
