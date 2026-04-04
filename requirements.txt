@@ -25,7 +25,5 @@ urllib3==2.6.2
 Werkzeug==3.1.4
 python-dotenv==1.1.0
 firebase-admin
-pyrebase4
 pytz
-setuptools
 gunicorn

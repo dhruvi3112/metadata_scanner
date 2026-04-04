@@ -1,9 +1,9 @@
 import os
 import json
 import sys
+import requests
 import firebase_admin
 from firebase_admin import credentials, firestore
-import pyrebase
 from dotenv import load_dotenv
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -35,16 +35,45 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# Initialize Pyrebase for Firebase Auth
-firebase_config = {
-    "apiKey": os.environ.get("FIREBASE_API_KEY"),
-    "authDomain": "metadata-scanner.firebaseapp.com",
-    "projectId": "metadata-scanner",
-    "databaseURL": "", # Not using realtime DB
-    "storageBucket": "metadata-scanner.appspot.com"
-}
-firebase = pyrebase.initialize_app(firebase_config)
-auth = firebase.auth()
+
+# ─── Lightweight Firebase Auth (replaces pyrebase4) ───
+# Uses Firebase Auth REST API directly, no gcloud dependency needed.
+FIREBASE_API_KEY = os.environ.get("FIREBASE_API_KEY")
+
+class FirebaseAuth:
+    """Minimal Firebase Auth client using REST API.
+    Drop-in replacement for pyrebase's auth object."""
+
+    SIGN_UP_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signUp"
+    SIGN_IN_URL = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword"
+
+    def __init__(self, api_key):
+        self.api_key = api_key
+
+    def create_user_with_email_and_password(self, email, password):
+        resp = requests.post(self.SIGN_UP_URL, params={"key": self.api_key}, json={
+            "email": email,
+            "password": password,
+            "returnSecureToken": True
+        })
+        data = resp.json()
+        if "error" in data:
+            raise Exception(data["error"]["message"])
+        return {"localId": data["localId"], "idToken": data["idToken"], "email": data["email"]}
+
+    def sign_in_with_email_and_password(self, email, password):
+        resp = requests.post(self.SIGN_IN_URL, params={"key": self.api_key}, json={
+            "email": email,
+            "password": password,
+            "returnSecureToken": True
+        })
+        data = resp.json()
+        if "error" in data:
+            raise Exception(data["error"]["message"])
+        return {"localId": data["localId"], "idToken": data["idToken"], "email": data["email"]}
+
+auth = FirebaseAuth(FIREBASE_API_KEY)
+
 
 def close_db(e=None):
     # Firestore client does not require manual closing per request like SQLite
