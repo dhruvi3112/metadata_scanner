@@ -27,4 +27,5 @@ python-dotenv==1.1.0
 firebase-admin
 pyrebase4
 pytz
-gunicorn==21.2.0
+setuptools
+gunicorn
