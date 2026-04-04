@@ -12,7 +12,7 @@ def fix_admin():
     cursor = conn.cursor()
     
     # 1. Reset Admin Password
-    new_password = "Password@123"
+    new_password = "maggie"
     hashed = generate_password_hash(new_password)
     cursor.execute("UPDATE users SET password = ? WHERE username = 'Dhruvi'", (hashed,))
     print(f"[Fix] Admin 'Dhruvi' password reset to: {new_password}")

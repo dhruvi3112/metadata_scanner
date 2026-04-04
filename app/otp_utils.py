@@ -5,9 +5,8 @@ import os
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
-from database import get_db
+from database import db
 from app.security_utils import decrypt_data
-
 
 def generate_otp(length=6):
     """Generate a random numeric OTP code."""
@@ -18,56 +17,60 @@ def store_otp(user_id, code, purpose):
     """
     Store an OTP in the database with a 10-minute expiry.
     Invalidates any previous unused OTPs for the same user+purpose.
-    purpose: 'email_verify' or 'login_2fa'
+    purpose: 'login_2fa'
     """
-    db = get_db()
-
     # Invalidate old unused OTPs for this user+purpose
-    db.execute(
-        "UPDATE otp_codes SET used = 1 WHERE user_id = ? AND purpose = ? AND used = 0",
-        (user_id, purpose)
-    )
+    old_otps = db.collection('otp_codes').where('user_id', '==', user_id).where('purpose', '==', purpose).where('used', '==', 0).stream()
+    for doc in old_otps:
+        doc.reference.update({'used': 1})
 
     expires_at = datetime.utcnow() + timedelta(minutes=10)
-    db.execute(
-        """INSERT INTO otp_codes (user_id, code, purpose, created_at, expires_at, used)
-           VALUES (?, ?, ?, ?, ?, 0)""",
-        (user_id, code, purpose, datetime.utcnow(), expires_at)
-    )
-    db.commit()
-
+    
+    db.collection('otp_codes').add({
+        'user_id': user_id,
+        'code': code,
+        'purpose': purpose,
+        'created_at': datetime.utcnow().isoformat(),
+        'expires_at': expires_at.isoformat(),
+        'used': 0
+    })
 
 def verify_otp(user_id, code, purpose):
     """
     Verify an OTP. Returns (True, None) on success or (False, error_message) on failure.
     Marks the OTP as used if valid.
     """
-    db = get_db()
-    otp_row = db.execute(
-        """SELECT * FROM otp_codes
-           WHERE user_id = ? AND code = ? AND purpose = ? AND used = 0
-           ORDER BY created_at DESC LIMIT 1""",
-        (user_id, code, purpose)
-    ).fetchone()
-
-    if not otp_row:
+    otp_docs = db.collection('otp_codes').where('user_id', '==', user_id).where('code', '==', code).where('purpose', '==', purpose).where('used', '==', 0).stream()
+    
+    otp_docs_list = list(otp_docs)
+    
+    if not otp_docs_list:
         return False, "Invalid OTP code. Please try again."
+        
+    # Sort by created_at DESC
+    otp_docs_list.sort(key=lambda x: x.to_dict().get('created_at', ''), reverse=True)
+    latest_otp_doc = otp_docs_list[0]
+    otp_data = latest_otp_doc.to_dict()
 
-    raw_expires = otp_row["expires_at"]
+    raw_expires = otp_data["expires_at"]
     if isinstance(raw_expires, str):
         try:
-            expires_at = datetime.strptime(raw_expires, "%Y-%m-%d %H:%M:%S.%f")
+            expires_at = datetime.fromisoformat(raw_expires)
+            # Remove timezone info if it exists to compare with utcnow
+            expires_at = expires_at.replace(tzinfo=None)
         except ValueError:
-            expires_at = datetime.strptime(raw_expires, "%Y-%m-%d %H:%M:%S")
+            try:
+                expires_at = datetime.strptime(raw_expires, "%Y-%m-%d %H:%M:%S.%f")
+            except ValueError:
+                expires_at = datetime.strptime(raw_expires, "%Y-%m-%d %H:%M:%S")
     else:
-        expires_at = raw_expires  # PostgreSQL returns a datetime object directly
+        expires_at = raw_expires
 
     if datetime.utcnow() > expires_at:
         return False, "OTP has expired. Please request a new one."
 
     # Mark as used
-    db.execute("UPDATE otp_codes SET used = 1 WHERE id = ?", (otp_row["id"],))
-    db.commit()
+    latest_otp_doc.reference.update({"used": 1})
 
     return True, None
 
@@ -78,13 +81,15 @@ def send_otp_email(to_email, code, purpose):
     Prioritizes DB settings, falls back to environment variables.
     Returns True on success, False on failure.
     """
-    db = get_db()
-    db_settings = db.execute("SELECT key, value FROM settings").fetchall()
-    settings_dict = {row["key"]: row["value"] for row in db_settings}
+    settings_docs = db.collection('settings').stream()
+    settings_dict = {doc.id: doc.to_dict().get("value") for doc in settings_docs}
 
     mail_username = (settings_dict.get("MAIL_USERNAME") or os.environ.get("MAIL_USERNAME", "")).strip()
-    encrypted_password = (settings_dict.get("MAIL_PASSWORD") or os.environ.get("MAIL_PASSWORD", "")).strip().replace(" ", "")
-    mail_password = decrypt_data(encrypted_password)
+    encrypted_password = (settings_dict.get("MAIL_PASSWORD") or os.environ.get("MAIL_PASSWORD", "")).strip()
+    
+    # Check if empty string before decrypting
+    mail_password = decrypt_data(encrypted_password) if encrypted_password else ""
+    
     mail_server = (settings_dict.get("MAIL_SERVER") or os.environ.get("MAIL_SERVER", "smtp.gmail.com")).strip()
     mail_port_str = (settings_dict.get("MAIL_PORT") or os.environ.get("MAIL_PORT", "587")).strip()
     try:
@@ -92,7 +97,8 @@ def send_otp_email(to_email, code, purpose):
     except:
         mail_port = 587
 
-    if not mail_username or not mail_password:
+    len_pw = len(mail_password) if mail_password else 0
+    if not mail_username or len_pw == 0:
         print("\n" + "!"*60)
         print(" [OTP] WARNING: SMTP CONFIGURATION MISSING ".center(60, "!"))
         print(f" [OTP] Please configure SMTP settings in the Admin Dashboard.")
@@ -100,7 +106,7 @@ def send_otp_email(to_email, code, purpose):
         print(f" [OTP] Code:        {code}")
         print(f" [OTP] Purpose:     {purpose}")
         print("!"*60 + "\n")
-        return True, None  # Return True to allow login with the code from the console
+        return True, None
 
     subject_map = {
         "email_verify": "Verify Your Email — Metadata Scanner",
@@ -146,44 +152,27 @@ def send_otp_email(to_email, code, purpose):
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    # Add display name to the From address
     msg["From"] = f"Metadata Scanner <{mail_username}>"
     msg["To"] = to_email
     msg.attach(MIMEText(body, "html"))
 
     try:
-        print(f"[OTP] Attempting to send email to {to_email} via {mail_server}:{mail_port}...")
         if mail_port == 465:
-            with smtplib.SMTP_SSL(mail_server, mail_port) as server:
-                server.set_debuglevel(0) # Set to 1 for even more detail in terminal
-                server.login(mail_username, mail_password)
-                server.sendmail(mail_username, to_email, msg.as_string())
+            server_class = smtplib.SMTP_SSL
         else:
-            with smtplib.SMTP(mail_server, mail_port) as server:
-                server.set_debuglevel(0) # Set to 1 for even more detail in terminal
+            server_class = smtplib.SMTP
+
+        with server_class(mail_server, mail_port, timeout=15) as server:
+            server.set_debuglevel(0)
+            if mail_port != 465:
                 server.starttls()
-                server.login(mail_username, mail_password)
-                server.sendmail(mail_username, to_email, msg.as_string())
+            server.login(mail_username, mail_password)
+            server.sendmail(mail_username, to_email, msg.as_string())
         
-        print(f" {'='*60} ")
-        print(f" [OTP] SUCCESS: Email sent to {to_email} ".center(60, "="))
-        print(f" {'='*60} ")
         return True, None
     except smtplib.SMTPAuthenticationError:
         err = "Authentication Failed: Please use a 16-character Google App Password."
-        print("\n" + "x"*60)
-        print(" [OTP] SMTP AUTHENTICATION FAILED ".center(60, "x"))
-        print(f" [OTP] User: {mail_username}")
-        print(f" [OTP] Error: {err}")
-        print(f" [OTP] Backup Code:  {code}")
-        print("x"*60 + "\n")
         return False, err
     except Exception as e:
         err = f"SMTP Error: {e}"
-        print("\n" + "?"*60)
-        print(" [OTP] SMTP ERROR ".center(60, "?"))
-        print(f" [OTP] Destination: {to_email}")
-        print(f" [OTP] Technical details: {e}")
-        print(f" [OTP] Backup Code:  {code}")
-        print("?"*60 + "\n")
         return False, err

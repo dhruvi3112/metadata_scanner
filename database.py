@@ -1,95 +1,39 @@
 import os
-import sqlite3
-from flask import g
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore
+import pyrebase
+from dotenv import load_dotenv
 
-# Check for a cloud DATABASE_URL (PostgreSQL)
-DATABASE_URL = os.environ.get("DATABASE_URL")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-SQLITE_DB = os.path.join(BASE_DIR, "database.db")
+# Initialize Firebase Admin for Firestore (Backend Database)
+# This will log a warning if initialized twice, so we check first
+if not firebase_admin._apps:
+    # Try env var first (for Render deployment), fall back to file (for local dev)
+    firebase_creds_json = os.environ.get("FIREBASE_CREDENTIALS")
+    if firebase_creds_json:
+        cred_dict = json.loads(firebase_creds_json)
+        cred = credentials.Certificate(cred_dict)
+    else:
+        cert_path = os.path.join(BASE_DIR, "firebase_credentials.json")
+        cred = credentials.Certificate(cert_path)
+    firebase_admin.initialize_app(cred)
 
-# Detect which database engine is active
-IS_POSTGRES = DATABASE_URL is not None
+db = firestore.client()
 
-
-class DictRow(dict):
-    """A dict subclass that also supports index-based access like sqlite3.Row."""
-    def __init__(self, cursor_description, row_tuple):
-        keys = [col[0] for col in cursor_description]
-        super().__init__(zip(keys, row_tuple))
-        self._keys = keys
-        self._values = list(row_tuple)
-
-    def __getitem__(self, key):
-        if isinstance(key, int):
-            return self._values[key]
-        return super().__getitem__(key)
-
-    def keys(self):
-        return self._keys
-
-
-class PgCursorWrapper:
-    """Wraps a psycopg2 cursor to behave like sqlite3's cursor with Row factory."""
-    def __init__(self, cursor):
-        self._cursor = cursor
-
-    def execute(self, sql, params=None):
-        # Convert SQLite-style '?' placeholders to PostgreSQL '%s'
-        sql = sql.replace("?", "%s")
-        if params:
-            self._cursor.execute(sql, params)
-        else:
-            self._cursor.execute(sql)
-        return self
-
-    def fetchone(self):
-        row = self._cursor.fetchone()
-        if row is None:
-            return None
-        return DictRow(self._cursor.description, row)
-
-    def fetchall(self):
-        rows = self._cursor.fetchall()
-        if not rows or not self._cursor.description:
-            return []
-        return [DictRow(self._cursor.description, r) for r in rows]
-
-
-class PgConnectionWrapper:
-    """Wraps a psycopg2 connection to provide a sqlite3-compatible interface."""
-    def __init__(self, conn):
-        self._conn = conn
-
-    def execute(self, sql, params=None):
-        cursor = PgCursorWrapper(self._conn.cursor())
-        cursor.execute(sql, params)
-        return cursor
-
-    def commit(self):
-        self._conn.commit()
-
-    def close(self):
-        self._conn.close()
-
-    def cursor(self):
-        return PgCursorWrapper(self._conn.cursor())
-
-
-def get_db():
-    if "db" not in g:
-        if IS_POSTGRES:
-            import psycopg2
-            conn = psycopg2.connect(DATABASE_URL)
-            g.db = PgConnectionWrapper(conn)
-        else:
-            conn = sqlite3.connect(SQLITE_DB)
-            conn.row_factory = sqlite3.Row
-            g.db = conn
-    return g.db
-
+# Initialize Pyrebase for Firebase Auth
+firebase_config = {
+    "apiKey": os.environ.get("FIREBASE_API_KEY"),
+    "authDomain": "metadata-scanner.firebaseapp.com",
+    "projectId": "metadata-scanner",
+    "databaseURL": "", # Not using realtime DB
+    "storageBucket": "metadata-scanner.appspot.com"
+}
+firebase = pyrebase.initialize_app(firebase_config)
+auth = firebase.auth()
 
 def close_db(e=None):
-    db = g.pop("db", None)
-    if db is not None:
-        db.close()
+    # Firestore client does not require manual closing per request like SQLite
+    pass

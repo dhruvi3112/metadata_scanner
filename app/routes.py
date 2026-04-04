@@ -1,16 +1,16 @@
-from flask import Blueprint, render_template, request, send_from_directory, abort, flash
+from flask import Blueprint, render_template, request, send_from_directory, abort, flash, session, redirect, url_for
 import os
+import datetime
 from scanner.extractor import extract_metadata
 from scanner.analyzer import analyze_metadata
 from scanner.domain_scanner import scan_domain
-from database import get_db
 from reports.pdf_report import generate_pdf
 from app.utils.risk_engine import calculate_risk
 from app.utils.metadata_utils import find_leaked_metadata 
 from app.security_utils import encrypt_data, decrypt_data
 from functools import wraps
-from flask import session, redirect, url_for, Blueprint
-from werkzeug.security import generate_password_hash, check_password_hash
+from database import db
+from firebase_admin import auth as admin_auth
 
 routes = Blueprint("routes", __name__)
 
@@ -20,12 +20,6 @@ ALLOWED_EXTENSIONS = {"pdf", "docx"}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(REPORT_FOLDER, exist_ok=True)
-
-
-@routes.route("/ping")
-def ping():
-    return "Server is running"
-
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -49,7 +43,6 @@ def admin_required(f):
 # ================= HOME PAGE =================
 @routes.route("/", methods=["GET", "POST"])
 def landing():
-    from flask import session
     if "user_id" in session:
         return redirect(url_for("routes.dashboard"))
     return render_template("landing.html")
@@ -62,7 +55,7 @@ def dashboard():
 @routes.route("/scan", methods=["POST"])
 @login_required
 def scan_file():
-    report_filename = None   # ✅ SAFE DEFAULT
+    report_filename = None
 
     file = request.files.get("file")
 
@@ -94,40 +87,27 @@ def scan_file():
          return "PDF generation failed", 500
     report_filename = os.path.basename(report_path)
 
-    db = get_db()
-    
-    # ENCRYPT filenames before saving to DB
     encrypted_filename = encrypt_data(file.filename)
     encrypted_report_filename = encrypt_data(report_filename)
     
-    from database import IS_POSTGRES
-    if IS_POSTGRES:
-        cursor = db.execute(
-            """
-            INSERT INTO scan_history (user_id, filename, report_file, risk_score)
-            VALUES (?, ?, ?, ?)
-            RETURNING id
-            """,
-            (session["user_id"], encrypted_filename, encrypted_report_filename, risk_score)
-        )
-        scan_id = cursor.fetchone()["id"]
-        db.commit()
-    else:
-        db.execute(
-            """
-            INSERT INTO scan_history (user_id, filename, report_file, risk_score)
-            VALUES (?, ?, ?, ?)
-            """,
-            (session["user_id"], encrypted_filename, encrypted_report_filename, risk_score)
-        )
-        db.commit()
-        scan_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+    # Store in Firestore
+    scan_doc_ref = db.collection("scan_history").document()
+    scan_doc_ref.set({
+        "user_id": session["user_id"],
+        "filename": encrypted_filename,
+        "report_file": encrypted_report_filename,
+        "risk_score": risk_score,
+        "created_at": datetime.datetime.utcnow().isoformat()
+    })
+    
+    scan_id = scan_doc_ref.id
 
     return render_template(
         "result.html",
         metadata=metadata,
         analysis=analysis,
-        scan_id=scan_id     )
+        scan_id=scan_id
+    )
 
 # ================= DOMAIN SCAN =================
 @routes.route("/scan-domain", methods=["POST"])
@@ -156,25 +136,27 @@ def admin_area():
 @login_required
 @admin_required
 def manage_users():
-    db = get_db()
-    
     if request.method == "POST":
         user_id = request.form.get("user_id")
         new_role = request.form.get("role")
         
-        # Prevent admin from demoting themselves
         if str(user_id) == str(session.get("user_id")) and new_role != "admin":
-            from flask import flash
             flash("You cannot demote yourself from admin.", "error")
         elif new_role in ["admin", "user"]:
-            db.execute("UPDATE users SET role = ? WHERE id = ?", (new_role, user_id))
-            db.commit()
-            from flask import flash
+            db.collection("users").document(user_id).update({"role": new_role})
             flash("User role updated successfully.", "success")
             
         return redirect(url_for("routes.manage_users"))
 
-    users = db.execute("SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC").fetchall()
+    users_docs = db.collection("users").stream()
+    users = []
+    for doc in users_docs:
+        user_data = doc.to_dict()
+        user_data["id"] = doc.id
+        users.append(user_data)
+        
+    # Sort by created_at descending
+    users.sort(key=lambda x: x.get("created_at", ""), reverse=True)
     return render_template("users.html", users=users)
 
 # ================= SETTINGS =================
@@ -182,7 +164,6 @@ def manage_users():
 @login_required
 @admin_required
 def settings():
-    db = get_db()
     if request.method == "POST":
         settings_data = {
             "MAIL_SERVER": request.form.get("mail_server"),
@@ -191,12 +172,13 @@ def settings():
             "MAIL_PASSWORD": encrypt_data(request.form.get("mail_password"))
         }
         for key, value in settings_data.items():
-            db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
-        db.commit()
-        return render_template("settings.html", success="System settings updated successfully!", settings=settings_data)
+            db.collection("settings").document(key).set({"value": value})
+        
+        # Reload dict for form display without encryption keys shown
+        return render_template("settings.html", success="System settings updated successfully!", settings={k: v for k,v in settings_data.items() if k != "MAIL_PASSWORD"})
 
-    db_settings = db.execute("SELECT key, value FROM settings").fetchall()
-    settings_dict = {row["key"]: row["value"] for row in db_settings}
+    settings_docs = db.collection("settings").stream()
+    settings_dict = {doc.id: doc.to_dict().get("value") for doc in settings_docs}
     return render_template("settings.html", settings=settings_dict)
 
 @routes.route("/settings/password", methods=["GET", "POST"])
@@ -207,23 +189,26 @@ def change_password():
         new_password = request.form.get("new_password")
         confirm_password = request.form.get("confirm_password")
         
-        db = get_db()
-        user = db.execute("SELECT password FROM users WHERE id = ?", (session["user_id"],)).fetchone()
-        
-        if not check_password_hash(user["password"], current_password):
-            return render_template("change_password.html", error="Incorrect current password")
-            
+        user_id = session.get("user_id")
+        user_doc = db.collection("users").document(user_id).get().to_dict()
+        email = user_doc.get("email")
+
         if new_password != confirm_password:
             return render_template("change_password.html", error="New passwords do not match")
             
         if len(new_password) < 8:
             return render_template("change_password.html", error="Password must be at least 8 characters long")
             
-        hashed_password = generate_password_hash(new_password)
-        db.execute("UPDATE users SET password = ? WHERE id = ?", (hashed_password, session["user_id"]))
-        db.commit()
-        
-        return render_template("change_password.html", success="Password updated successfully!")
+        try:
+            from database import auth
+            # Attempt signIn to verify current password
+            auth.sign_in_with_email_and_password(email, current_password)
+            
+            # Update password with admin sdk
+            admin_auth.update_user(user_id, password=new_password)
+            return render_template("change_password.html", success="Password updated successfully!")
+        except Exception as e:
+            return render_template("change_password.html", error="Incorrect current password")
         
     return render_template("change_password.html")
 
@@ -231,65 +216,50 @@ def change_password():
 @routes.route("/history")
 @login_required
 def history():
-    if "user_id" not in session:
-        return redirect(url_for("auth.login"))
-
-    db = get_db()
-
     if session.get("role") == "admin":
-        scans_raw = db.execute(
-            """
-            SELECT scan_history.*, users.username
-            FROM scan_history
-            JOIN users ON scan_history.user_id = users.id
-            ORDER BY created_at DESC
-            """
-        ).fetchall()
+        scans_raw = []
+        for scan_doc in db.collection("scan_history").stream():
+            scan_dict = scan_doc.to_dict()
+            scan_dict["id"] = scan_doc.id
+            user_doc = db.collection("users").document(scan_dict.get("user_id")).get()
+            if user_doc.exists:
+                scan_dict["username"] = user_doc.to_dict().get("username")
+            else:
+                scan_dict["username"] = "Unknown"
+            scans_raw.append(scan_dict)
     else:
-        scans_raw = db.execute(
-            """
-            SELECT *
-            FROM scan_history
-            WHERE user_id = ?
-            ORDER BY created_at DESC
-            """,
-            (session["user_id"],)
-        ).fetchall()
+        scans_raw = []
+        for scan_doc in db.collection("scan_history").where("user_id", "==", session["user_id"]).stream():
+            scan_dict = scan_doc.to_dict()
+            scan_dict["id"] = scan_doc.id
+            scans_raw.append(scan_dict)
 
-    # DECRYPT filenames for display
+    scans_raw.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+
     scans = []
     for row in scans_raw:
-        row_dict = dict(row)
-        row_dict["filename"] = decrypt_data(row_dict.get("filename", ""))
-        scans.append(row_dict)
+        row["filename"] = decrypt_data(row.get("filename", ""))
+        scans.append(row)
 
     return render_template("history.html", scans=scans)
 
 
 # ================= DOWNLOAD REPORT =================
-@routes.route("/download/<int:scan_id>")
+@routes.route("/download/<scan_id>")
 @login_required
 def download_report(scan_id):
-    db = get_db()
+    scan_doc = db.collection("scan_history").document(scan_id).get()
+    if not scan_doc.exists:
+        abort(404)
+        
+    scan = scan_doc.to_dict()
+    
+    if session.get("role") != "admin" and scan.get("user_id") != session.get("user_id"):
+        abort(403)
 
-    if session.get("role") == "admin":
-        scan = db.execute(
-            "SELECT report_file FROM scan_history WHERE id = ?",
-            (scan_id,)
-        ).fetchone()
-    else:
-        scan = db.execute(
-            """
-            SELECT report_file FROM scan_history
-            WHERE id = ? AND user_id = ?
-            """,
-            (scan_id, session["user_id"])
-        ).fetchone()
-
-    if not scan or not scan["report_file"]:
+    if not scan.get("report_file"):
         abort(404)
 
-    # DECRYPT the report file name to find it on disk
     real_report_filename = decrypt_data(scan["report_file"])
 
     return send_from_directory(
