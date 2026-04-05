@@ -88,7 +88,8 @@ def login():
             sent, smtp_error = send_otp_email(email, code, "login_2fa")
 
             if not sent:
-                flash(f"Note: Email delivery blocked by PythonAnywhere. Your emergency login code is: {code}", "warning")
+                print(f"[Login] SMTP failed: {smtp_error}")
+                flash(f"Email delivery failed. Your emergency login code is: {code}", "warning")
 
             # Store pending 2FA session
             session["pending_2fa_user_id"] = user_id

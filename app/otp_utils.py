@@ -98,15 +98,17 @@ def send_otp_email(to_email, code, purpose):
         mail_port = 587
 
     len_pw = len(mail_password) if mail_password else 0
+    print(f"[OTP] SMTP Config: server={mail_server}, port={mail_port}, user={mail_username}, pw_len={len_pw}")
     if not mail_username or len_pw == 0:
         print("\n" + "!"*60)
         print(" [OTP] WARNING: SMTP CONFIGURATION MISSING ".center(60, "!"))
         print(f" [OTP] Please configure SMTP settings in the Admin Dashboard.")
+        print(f" [OTP] Or set MAIL_USERNAME and MAIL_PASSWORD env vars.")
         print(f" [OTP] Destination: {to_email}")
         print(f" [OTP] Code:        {code}")
         print(f" [OTP] Purpose:     {purpose}")
         print("!"*60 + "\n")
-        return True, None
+        return False, "SMTP not configured. Set MAIL_USERNAME and MAIL_PASSWORD."
 
     subject_map = {
         "email_verify": "Verify Your Email — Metadata Scanner",
